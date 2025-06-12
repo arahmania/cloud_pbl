@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # Frontend Service (React/Vue/etc.)
+  app:
+    build:
+      context: ./travel-agent-frontend
+      dockerfile: Dockerfile
+    container_name: travel_agent_app
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount kode sumber, tapi buat pengecualian untuk node_modules
+      # agar tidak tertimpa oleh folder lokal.
+      - ./travel-agent-frontend:/app
+      - /app/node_modules
+    depends_on:
+      - laravel
+    environment:
+      # Perlu untuk hot-reloading di beberapa sistem operasi
+      - CHOKIDAR_USEPOLLING=true
+
+  # Backend Service (Laravel/PHP)
+  laravel:
+    build:
+      context: ./travel-agent-backend
+      dockerfile: Dockerfile
+    container_name: travel_agent_laravel
+    volumes:
+      - ./travel-agent-backend:/var/www/html
+    depends_on:
+      - db
+    # Tidak perlu expose port 9000 ke host, karena hanya perlu diakses oleh nginx
+
+  # Web Server Service (Nginx)
+  nginx:
+    image: nginx:1.19-alpine
+    container_name: travel_agent_nginx
+    ports:
+      - "8000:80"
+    volumes:
+      # Nginx perlu akses ke file public Laravel
+      - ./travel-agent-backend:/var/www/html
+      # Mount file konfigurasi Nginx
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - laravel
+
+  # Database Service (MySQL)
+  db:
+    image: mysql:8.0
+    container_name: travel_agent_db
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: travel_agent_be
+      MYSQL_USER: user # Lebih baik membuat user baru, jangan pakai root
+      MYSQL_PASSWORD: password
+    volumes:
+      # Menggunakan named volume untuk persistensi data yang lebih aman
+      - db_data:/var/lib/mysql
+
+# Docker Named Volume
+volumes:
+  db_data:
